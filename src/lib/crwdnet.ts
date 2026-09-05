@@ -66,7 +66,11 @@ export async function loadPlaces() {
 
 export async function loadPlace(id: string) {
   const { data, error } = await supabase.from("places").select("*").eq("id", id).maybeSingle();
-  if (error || !data) return fallbackPlaces.find((place) => place.id === id) ?? fallbackPlaces[0];
+  if (error || !data) {
+    const fallback = fallbackPlaces.find((place) => place.id === id) ?? fallbackPlaces.at(0);
+    if (fallback) return fallback;
+    throw new Error("No places available");
+  }
   return data as Place;
 }
 
