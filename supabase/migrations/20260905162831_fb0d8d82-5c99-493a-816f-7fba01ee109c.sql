@@ -1,0 +1,1 @@
+CREATE POLICY "Only authorized services can access security events" ON public.security_events FOR ALL TO service_role USING (true) WITH CHECK (true);

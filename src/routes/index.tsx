@@ -1,24 +1,71 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Bell, Compass, LockKeyhole, MapPin, Menu, Plus, Search, ShieldCheck, SlidersHorizontal, Sparkles, UserRound } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/integrations/supabase/client";
+import { fallbackPlaces, loadPlaces, relativeTime, reportTypes, statusLabel, statusTone, type Place } from "@/lib/crwdnet";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({ meta: [{ title: "CrwdNet — live local signals" }, { name: "description", content: "Find live local information while keeping people private." }, { property: "og:title", content: "CrwdNet — live local signals" }, { property: "og:description", content: "Find live local information while keeping people private." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
+  const navigate = useNavigate();
+  const [places, setPlaces] = useState<Place[]>(fallbackPlaces);
+  const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [locationState, setLocationState] = useState<"off" | "on" | "denied">("off");
+  const [reportPlace, setReportPlace] = useState<Place | null>(null);
+  const [reportType, setReportType] = useState("open");
+  const [reportNote, setReportNote] = useState("");
+  const [reportState, setReportState] = useState<"idle" | "working" | "success" | "error">("idle");
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    void loadPlaces().then(setPlaces);
+    const channel = supabase.channel("crwdnet-live-updates").on("postgres_changes", { event: "*", schema: "public", table: "community_reports" }, () => { void loadPlaces().then(setPlaces); }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, []);
+
+  const categories = useMemo(() => ["All", ...Array.from(new Set(places.map((place) => place.category)))], [places]);
+  const filteredPlaces = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return places.filter((place) => (!normalized || `${place.name} ${place.category} ${place.neighborhood}`.toLowerCase().includes(normalized)) && (selectedCategory === "All" || place.category === selectedCategory));
+  }, [places, query, selectedCategory]);
+
+  function requestApproximateLocation() {
+    if (!navigator.geolocation) { setLocationState("denied"); return; }
+    navigator.geolocation.getCurrentPosition(() => setLocationState("on"), () => setLocationState("denied"), { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 });
+  }
+
+  async function submitReport() {
+    setReportState("working");
+    const { data } = await supabase.auth.getUser();
+    if (!data.user || !reportPlace) { setReportState("error"); return; }
+    const { error } = await supabase.from("community_reports").insert({ place_id: reportPlace.id, report_type: reportType, note: reportNote.trim() });
+    setReportState(error ? "error" : "success");
+    if (!error) { setReportNote(""); void loadPlaces().then(setPlaces); }
+  }
+
+  return <main className="min-h-screen overflow-x-hidden bg-background">
+    <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8"><Link to="/" className="flex items-center gap-3" aria-label="CrwdNet home"><span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm"><Sparkles className="size-4" /></span><span className="display-type text-lg font-bold tracking-tight">CrwdNet<span className="text-primary">.</span></span></Link><div className="hidden items-center gap-2 sm:flex"><span className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground"><span className="size-1.5 rounded-full bg-signal-live" />Live local signals</span><Button variant="outline" size="sm" onClick={() => navigate({ to: "/auth" })}><UserRound className="size-3.5" /> Sign in</Button></div><Button variant="ghost" size="icon" className="sm:hidden" onClick={() => setMenuOpen(!menuOpen)} aria-label="Open menu"><Menu className="size-5" /></Button></header>
+    {menuOpen && <div className="mx-5 mb-4 flex items-center justify-between rounded-xl border border-border bg-card p-3 sm:hidden"><span className="text-sm text-muted-foreground">Private by default. Always.</span><Button size="sm" onClick={() => navigate({ to: "/auth" })}>Sign in</Button></div>}
+    <section className="mx-auto max-w-7xl px-5 pb-12 pt-8 lg:px-8 lg:pb-20 lg:pt-14"><div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-end"><div><Badge variant="secondary" className="mb-5 gap-2 py-1.5"><span className="size-1.5 rounded-full bg-signal-live" /> Built for your real neighborhood</Badge><h1 className="display-type max-w-2xl text-4xl font-bold leading-[1.04] text-foreground sm:text-6xl">Know what’s happening.<br /><span className="text-primary">Keep people private.</span></h1><p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">Live local signals from people nearby, without names, phone numbers, or pin-drops. Search a place and see what’s useful right now.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><div className="relative min-w-0 flex-1 sm:max-w-xl"><Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search places, companies, jobs..." className="h-12 rounded-xl border-border bg-card pl-11 pr-12 shadow-sm" /><Button variant="ghost" size="icon" className="absolute right-1.5 top-1.5" aria-label="Filter search"><SlidersHorizontal className="size-4" /></Button></div><Button size="lg" className="h-12 rounded-xl" onClick={requestApproximateLocation}><MapPin className="size-4" /> {locationState === "on" ? "Approximate area on" : "Use my area"}</Button></div><div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-3.5 text-primary" /> {locationState === "on" ? "Your exact location is not stored or shown." : "Location is optional and never shared as an exact point."}</div></div><div className="relative hidden min-h-[350px] overflow-hidden rounded-[2rem] bg-hero-surface p-7 text-primary-foreground shadow-xl lg:block"><div className="signal-grid absolute inset-0 opacity-15" /><div className="relative flex h-full flex-col justify-between"><div className="flex items-start justify-between"><div><p className="text-sm text-primary-foreground/65">Right now in Downtown</p><p className="display-type mt-1 text-2xl font-bold">8 live signals</p></div><span className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">2 min ago</span></div><div className="relative mx-auto h-40 w-full max-w-md"><div className="map-road absolute left-[15%] top-[38%] h-3 w-[75%] rotate-12 rounded-full" /><div className="map-road absolute left-[42%] top-[8%] h-[84%] w-3 -rotate-[27deg] rounded-full" /><div className="map-road absolute left-[10%] top-[67%] h-3 w-[76%] -rotate-6 rounded-full" /><MapMarker label="Juniper & Co." position="left-[20%] top-[26%]" tone="live" /><MapMarker label="Marlow Market" position="left-[65%] top-[58%]" tone="caution" /><MapMarker label="Northline" position="left-[46%] top-[77%]" tone="live" /></div><div className="flex items-center justify-between border-t border-primary-foreground/15 pt-4 text-xs text-primary-foreground/70"><span className="flex items-center gap-2"><span className="size-2 rounded-full bg-signal-live" /> Aggregated activity only</span><span>Approximate area</span></div></div></div></div></section>
+    <section className="border-y border-border bg-card/40"><div className="mx-auto max-w-7xl px-5 py-8 lg:px-8"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Live nearby</p><h2 className="display-type mt-2 text-2xl font-bold">What’s active around you</h2></div><span className="flex items-center gap-1 text-sm font-semibold text-primary">Explore all <ArrowRight className="size-4" /></span></div><div className="mt-6 flex gap-2 overflow-x-auto pb-1">{categories.map((category) => <Button key={category} variant={selectedCategory === category ? "default" : "outline"} size="sm" className="shrink-0 rounded-full" onClick={() => setSelectedCategory(category)}>{category}</Button>)}</div><div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">{filteredPlaces.slice(0, 4).map((place) => <PlaceCard key={place.id} place={place} onReport={() => setReportPlace(place)} onOpen={() => navigate({ to: "/place/$placeId", params: { placeId: place.id } })} />)}</div>{!filteredPlaces.length && <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No places match that search yet.</div>}</div></section>
+    <section className="mx-auto grid max-w-7xl gap-6 px-5 py-12 lg:grid-cols-[1fr_0.8fr] lg:px-8 lg:py-20"><div className="rounded-3xl bg-secondary p-7 sm:p-9"><div className="flex size-11 items-center justify-center rounded-2xl bg-card text-secondary-foreground"><ShieldCheck className="size-5" /></div><h2 className="display-type mt-8 max-w-md text-3xl font-bold">Privacy isn’t a setting. It’s the starting point.</h2><p className="mt-4 max-w-xl leading-7 text-secondary-foreground/75">CrwdNet shares signals, not people. We show approximate activity, never individual locations. Community updates are labeled, and your public identity can stay a pseudonym.</p><div className="mt-7 grid gap-3 text-sm font-semibold text-secondary-foreground sm:grid-cols-2"><span className="flex items-center gap-2"><LockKeyhole className="size-4" /> No phone numbers</span><span className="flex items-center gap-2"><Compass className="size-4" /> No exact pin-drops</span><span className="flex items-center gap-2"><UserRound className="size-4" /> Pseudonyms by default</span><span className="flex items-center gap-2"><Bell className="size-4" /> You control alerts</span></div></div><div className="rounded-3xl border border-border bg-card p-7 sm:p-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Contribute carefully</p><h2 className="display-type mt-3 text-2xl font-bold">Make your neighborhood more useful.</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Share a quick status update when you’re already there. Your report is attached to the place, not your identity.</p><Button className="mt-7 w-full rounded-xl" onClick={() => setReportPlace(places[0] ?? null)}><Plus className="size-4" /> Report an update</Button><div className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><LockKeyhole className="mt-0.5 size-3.5 shrink-0 text-primary" /> You’ll sign in with a pseudonymous account before posting.</div></div></section>
+    <footer className="border-t border-border"><div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between lg:px-8"><span className="font-semibold text-foreground">CrwdNet<span className="text-primary">.</span></span><span>Community-reported information is estimated, not guaranteed.</span><span>Made for connected neighborhoods.</span></div></footer>
+    <Dialog open={Boolean(reportPlace)} onOpenChange={(open) => { if (!open) { setReportPlace(null); setReportState("idle"); } }}><DialogContent className="max-w-md rounded-2xl"><DialogHeader><DialogTitle>Report an update</DialogTitle><DialogDescription>{reportPlace?.name} · Your identity stays private.</DialogDescription></DialogHeader>{reportState === "success" ? <div className="rounded-xl bg-secondary p-4 text-sm leading-6 text-secondary-foreground">Thanks. Your community signal is now live and will expire automatically.</div> : <div className="space-y-4"><div className="grid grid-cols-2 gap-2">{reportTypes.map((type) => <Button key={type.value} type="button" variant={reportType === type.value ? "default" : "outline"} className="justify-start" onClick={() => setReportType(type.value)}>{type.label}</Button>)}</div><Textarea value={reportNote} onChange={(event) => setReportNote(event.target.value)} placeholder="Add a short note (optional)" className="min-h-24" />{reportState === "error" && <p className="text-sm text-destructive">Please sign in before sharing an update.</p>}<Button className="w-full" disabled={reportState === "working"} onClick={submitReport}>{reportState === "working" ? "Sharing..." : "Share privately"}</Button>{reportState === "error" && <Button variant="link" className="w-full" onClick={() => navigate({ to: "/auth" })}>Go to sign in</Button>}</div>}</DialogContent></Dialog>
+  </main>;
 }
+
+function PlaceCard({ place, onReport, onOpen }: { place: Place; onReport: () => void; onOpen: () => void }) {
+  const tone = statusTone(place.status);
+  return <article className="group rounded-2xl border border-border bg-card p-5 shadow-sm transition-transform hover:-translate-y-0.5"><button className="block w-full text-left" onClick={onOpen}><div className="flex items-start justify-between gap-3"><span className={`flex items-center gap-2 text-xs font-bold ${tone === "live" ? "text-signal-live" : tone === "uncertain" ? "text-signal-caution" : "text-destructive"}`}><span className="size-2 rounded-full bg-current" /> {statusLabel(place.status)}</span>{place.verified && <Badge variant="outline" className="gap-1 text-[10px]"><ShieldCheck className="size-3" /> Verified</Badge>}</div><h3 className="mt-5 text-lg font-bold text-foreground">{place.name}</h3><p className="mt-1 text-xs text-muted-foreground">{place.category} · {place.neighborhood}</p><div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground"><span>{place.recent_signal_count} recent signals</span><span>{relativeTime(place.last_signal_at)}</span></div></button><div className="mt-3 flex gap-2"><Button variant="outline" size="sm" className="flex-1" onClick={onReport}><Plus className="size-3.5" /> Report</Button><Button variant="ghost" size="sm" onClick={onOpen} aria-label={`Open ${place.name}`}><ArrowRight className="size-4" /></Button></div></article>;
+}
+
+function MapMarker({ label, position, tone }: { label: string; position: string; tone: "live" | "caution" }) { return <div className={`absolute ${position} flex items-center gap-1.5`}><span className={`flex size-4 items-center justify-center rounded-full border-2 border-hero-surface ${tone === "live" ? "bg-signal-live" : "bg-signal-caution"}`} /><span className="rounded-md bg-hero-surface/80 px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground/80">{label}</span></div>; }
