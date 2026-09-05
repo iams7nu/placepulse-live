@@ -14,7 +14,236 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      abuse_reports: {
+        Row: {
+          created_at: string
+          details: string
+          id: string
+          reason: string
+          reporter_id: string
+          status: string
+          subject_alias: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string
+          id?: string
+          reason: string
+          reporter_id: string
+          status?: string
+          subject_alias: string
+        }
+        Update: {
+          created_at?: string
+          details?: string
+          id?: string
+          reason?: string
+          reporter_id?: string
+          status?: string
+          subject_alias?: string
+        }
+        Relationships: []
+      }
+      blocks: {
+        Row: {
+          blocked_alias: string
+          blocker_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          blocked_alias: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          blocked_alias?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      community_reports: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          note: string
+          place_id: string
+          report_type: string
+          source_label: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          note?: string
+          place_id: string
+          report_type: string
+          source_label?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          note?: string
+          place_id?: string
+          report_type?: string
+          source_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_reports_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      places: {
+        Row: {
+          activity_level: string
+          address: string
+          category: string
+          created_at: string
+          description: string
+          id: string
+          last_signal_at: string | null
+          latitude: number
+          longitude: number
+          name: string
+          neighborhood: string
+          recent_signal_count: number
+          status: string
+          updated_at: string
+          verified: boolean
+        }
+        Insert: {
+          activity_level?: string
+          address: string
+          category: string
+          created_at?: string
+          description?: string
+          id?: string
+          last_signal_at?: string | null
+          latitude: number
+          longitude: number
+          name: string
+          neighborhood: string
+          recent_signal_count?: number
+          status?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Update: {
+          activity_level?: string
+          address?: string
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          last_signal_at?: string | null
+          latitude?: number
+          longitude?: number
+          name?: string
+          neighborhood?: string
+          recent_signal_count?: number
+          status?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          alias: string
+          avatar_seed: string
+          contact_mode: string
+          created_at: string
+          discoverable: boolean
+          location_mode: string
+          show_contributions: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alias: string
+          avatar_seed?: string
+          contact_mode?: string
+          created_at?: string
+          discoverable?: boolean
+          location_mode?: string
+          show_contributions?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alias?: string
+          avatar_seed?: string
+          contact_mode?: string
+          created_at?: string
+          discoverable?: boolean
+          location_mode?: string
+          show_contributions?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      security_events: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          ip_address: unknown
+          metadata: Json
+          user_agent: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          user_agent?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
